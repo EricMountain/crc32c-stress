@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
     }
 
     unsigned int subareas = BIG_AREA / acc;
-    printf("Big area: %d, sub areas: %u\n", BIG_AREA, subareas);
+    printf("Big area: %ld, sub areas: %u\n", BIG_AREA, subareas);
 
     for (int i = 0; i < subareas; i++) {
         char *subarea_start = bigarea+(i*acc);
