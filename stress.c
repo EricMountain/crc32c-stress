@@ -60,8 +60,6 @@ static void * thread_start(void *arg)
         if (crc32_check != crc32_reference) {
             printf("NOK CRC32C diff: %u (check) vs %u (reference)\n", crc32_check, crc32_reference);
             exit(3);
-        } else {
-            printf("OK CRC32C diff: %u (check) vs %u (reference)\n", crc32_check, crc32_reference);
         }
     }
 
