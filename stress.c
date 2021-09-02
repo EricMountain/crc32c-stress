@@ -11,8 +11,8 @@
 uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
 #define BUF_LEN 5000
-#define BIG_AREA 1000000
-#define THREADS 4
+#define BIG_AREA 57449212928
+#define THREADS 8
 
 #define handle_error_en(en, msg) \
     do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
