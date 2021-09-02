@@ -11,8 +11,8 @@
 uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
 #define BUF_LEN 5000
-#define BIG_AREA 57449212928
-#define THREADS 8
+#define BIG_AREA 63000000000
+#define THREADS 12
 
 #define handle_error_en(en, msg) \
     do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
     }
 
     unsigned int subareas = BIG_AREA / acc;
-    printf("Big area: %ld, sub areas: %u\n", BIG_AREA, subareas);
+    printf("Filling big area: %ld bytes, sub areas: %u\n", BIG_AREA, subareas);
 
     for (int i = 0; i < subareas; i++) {
         char *subarea_start = bigarea+(i*acc);
