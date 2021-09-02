@@ -48,7 +48,7 @@ static void * thread_start(void *arg)
         handle_error("initstate_r");
     }
 
-    while 1 {
+    for(;;) {
         int32_t random_number;
         res = random_r(&rd, &random_number);
         int32_t normalised_random_number = random_number % subareas;
