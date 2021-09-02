@@ -9,7 +9,7 @@ crc32c: crc32c.h crc32c.c main.c
 	gcc -O3 -o crc32c crc32c.c main.c
 
 stress: crc32c.h crc32c.c stress.c
-	gcc -lpthread -O3 -o stress crc32c.c stress.c
+	gcc -pthread -O3 -o stress crc32c.c stress.c
 
 .PHONY: clean
 clean:
