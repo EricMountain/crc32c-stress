@@ -48,18 +48,21 @@ static void * thread_start(void *arg)
         handle_error("initstate_r");
     }
 
-    int32_t random_number;
-    res = random_r(&rd, &random_number);
-    int32_t normalised_random_number = random_number % subareas;
+    while 1 {
+        int32_t random_number;
+        res = random_r(&rd, &random_number);
+        int32_t normalised_random_number = random_number % subareas;
 
-    char *subarea_start = bigarea+(normalised_random_number*length);
-    uint32_t crc32_check = crc32c(0, subarea_start, length);
-    printf("crc32: %u 0x%x, length %ld, random_number %d, normalised_random_number %d, subareas %u\n",
-            crc32_check, crc32_check, length, random_number, normalised_random_number, subareas);
-    if (crc32_check != crc32_reference) {
-        printf("NOK CRC32C diff: %u (check) vs %u (reference)\n", crc32_check, crc32_reference);
-    } else {
-        printf("OK CRC32C diff: %u (check) vs %u (reference)\n", crc32_check, crc32_reference);
+        char *subarea_start = bigarea+(normalised_random_number*length);
+        uint32_t crc32_check = crc32c(0, subarea_start, length);
+//        printf("crc32: %u 0x%x, length %ld, random_number %d, normalised_random_number %d, subareas %u\n",
+//                crc32_check, crc32_check, length, random_number, normalised_random_number, subareas);
+        if (crc32_check != crc32_reference) {
+            printf("NOK CRC32C diff: %u (check) vs %u (reference)\n", crc32_check, crc32_reference);
+            exit(3);
+        } else {
+            printf("OK CRC32C diff: %u (check) vs %u (reference)\n", crc32_check, crc32_reference);
+        }
     }
 
     return NULL;
