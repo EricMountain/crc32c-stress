@@ -5,6 +5,7 @@
 uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
 #define BUF_LEN 5000
+
 int main(int argc, char *argv[]) {
 	char buffer[BUF_LEN];
 

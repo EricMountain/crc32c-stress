@@ -1,4 +1,5 @@
 /crc32c
 /data*
+/find_corruption
 /stress
 /table_generator
