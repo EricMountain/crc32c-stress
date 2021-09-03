@@ -20,6 +20,17 @@ uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
+
+struct thread_info {              /* Used as argument to thread_start() */
+    pthread_t thread_id;           /* ID returned by pthread_create() */
+    int       thread_num;          /* Application-defined thread # */
+    ssize_t length;              /* Length of the block to checksum */
+    unsigned int crc32_target;   /* CRC32C we are seeking to match */
+    char *buffer;                /* Pointer to buffer to checksum. Threads need to make own copy. */
+    int bytes_wrong;             /* Number of wrong bytes to assume */
+};
+
+
 // Args: crc32-target out-file hint-bytes-wrong hint-offset, threads
 int main(int argc, char *argv[]) {
     uint32_t crc32_target = 4201578152;
@@ -69,35 +80,13 @@ int main(int argc, char *argv[]) {
 	uint32_t crc32_found = crc32c(0, buffer, length);
 	printf("crc32: %u 0x%x, length %ld\n", crc32_found, crc32_found, length);
 
-
-    // Try single byte corruption
-    for (int i = 0; i < length; i++) {
-        char c = buffer[i];
-        uint32_t crc32_interim = crc32c(0, buffer, length);
-        if (crc32_interim != crc32_found) {
-            printf("BUG!\n");
-            exit(1);
-        }
-        for (int j = 0; j < 256; j++) {
-            buffer[i] = j;
-            uint32_t crc32_test = crc32c(0, buffer, length);
-            if (crc32_test == crc32_target) {
-                printf("OK!\n");
-                exit(0);
-            }
-        }
-        buffer[i] = c;
-    }
-    printf("Did not find single-byte solution\n");
-
     // Try sequential n-byte corruption
     // NB k is max 7, o/w (256 << ((k-1)*8)) will overflow I think. Need to do the math properly, but
     //    given length is a few thousand bytes the complexity is going through the roof anyway
-    // NB2 Start at 3 b.c. we know there's a solution there
-    for (int k = 3; k < 7; k++) {
+    for (int k = hint_bytes_wrong; k < 7; k++) {
         char save[k];
-        // NB2 Start at 310 b.c. we know there's a solution there
-        for (int i = 310; i < length; i++) {
+        for (int i = hint_offset; i < length; i++) {
+            // Spawn thread TODO
             memcpy(save, buffer+i, k);
             uint32_t crc32_interim = crc32c(0, buffer, length);
             if (crc32_interim != crc32_found) {
@@ -111,8 +100,13 @@ int main(int argc, char *argv[]) {
                 }
                 uint32_t crc32_test = crc32c(0, buffer, length);
                 if (crc32_test == crc32_target) {
-                    printf("OK! found %u, target %u, offset %d, bytes %d\n", crc32_test, crc32_target, i, k);
-                    printf("Replacements:\n");
+                    printf("Found solution %u, target %u, offset %d, bytes %d\n", crc32_test, crc32_target, i, k);
+                    printf("Corrupt:\n");
+                    for (int n = 0; n < k; n++) {
+                        printf("%02hhx ", save[n]);
+                    }
+                    printf("\n");
+                    printf("Correct:\n");
                     for (int n = 0; n < k; n++) {
                         printf("%02hhx ", buffer[i+n]);
                     }
