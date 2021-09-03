@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <time.h>
+#include <fcntl.h>
 
 uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
@@ -59,17 +60,17 @@ int main(int argc, char *argv[]) {
     // Try sequential n-byte corruption
     // NB k is max 7, o/w (256 << ((k-1)*8)) will overflow I think. Need to do the math properly, but
     //    given length is a few thousand bytes the complexity is going through the roof anyway
-    for (uint64_t k = 1; k < 7; k++) {
+    // NB2 Start at 3 b.c. we know there's a solution there
+    for (int k = 3; k < 7; k++) {
         char save[k];
-        for (int i = 0; i < length; i++) {
+        // NB2 Start at 310 b.c. we know there's a solution there
+        for (int i = 310; i < length; i++) {
             memcpy(save, buffer+i, k);
             uint32_t crc32_interim = crc32c(0, buffer, length);
             if (crc32_interim != crc32_found) {
-                printf("BUG!\n");
-                exit(1);
+                handle_error("BUG!");
             }
             for (uint64_t j = 0; j < 256 << ((k-1)*8); j++) {
-//                printf("j=%lld\n", j);
                 uint64_t j2 = j;
                 for (int m = 0; m < k; m++) {
                     buffer[i+m] = j2 & 0xff;
@@ -77,13 +78,26 @@ int main(int argc, char *argv[]) {
                 }
                 uint32_t crc32_test = crc32c(0, buffer, length);
                 if (crc32_test == crc32_target) {
-                    printf("OK!\n");
+                    printf("OK! found %u, target %u, offset %d, bytes %d\n", crc32_test, crc32_target, i, k);
+                    printf("Replacements:\n");
+                    for (int n = 0; n < k; n++) {
+                        printf("%02hhx ", buffer[i+n]);
+                    }
+                    printf("\n");
+                    int fd = open("data.fixed", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+                    ssize_t written = write(fd, buffer, length);
+                    if (written == -1) {
+                        handle_error("write");
+                    } else if (written != length) {
+                        handle_error("short write");
+                    }
+                    close(fd);
                     exit(0);
                 }
             }
             memcpy(buffer+i, save, k);
         }
-        printf("Did not find %llu-byte solution\n", k);
+        printf("Did not find %d-byte solution\n", k);
     }
 
 	exit(0);
