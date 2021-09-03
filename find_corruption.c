@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
                         printf("%02hhx ", buffer[i+n]);
                     }
                     printf("\n");
-                    int fd = open("data.fixed", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+                    int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
                     ssize_t written = write(fd, buffer, length);
                     if (written == -1) {
                         handle_error("write");
