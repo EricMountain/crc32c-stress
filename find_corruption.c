@@ -12,6 +12,7 @@
 uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
 #define BUF_LEN 5000
+#define THREADS 4
 
 #define handle_error_en(en, msg) \
     do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
@@ -19,9 +20,42 @@ uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
+// Args: crc32-target out-file hint-bytes-wrong hint-offset, threads
 int main(int argc, char *argv[]) {
-	char buffer[BUF_LEN];
+    uint32_t crc32_target = 4201578152;
+    int hint_bytes_wrong = 0;
+    int hint_offset = 0;
+    int opt;
+    int threads = THREADS;
+    char *output_file = strdup("output.data");
 
+    while ((opt = getopt(argc, argv, "b:o:c:f:t:")) != -1) {
+       switch (opt) {
+       case 'b':
+           hint_bytes_wrong = atoi(optarg);
+           break;
+       case 'o':
+           hint_offset = atoi(optarg);
+           break;
+       case 'c':
+           crc32_target = strtoul(optarg, NULL, 10);
+           break;
+       case 'f':
+           free(output_file);
+           output_file = strdup(optarg);
+           break;
+       case 't':
+           threads = atoi(optarg);
+           break;
+       default: /* '?' */
+           fprintf(stderr, "Usage: %s [-b bytes_wrong] [-o start_offset] [-c target_crc32] [-f output_file] [-t threads]\n",
+                   argv[0]);
+           exit(EXIT_FAILURE);
+       }
+    }
+
+    // We'll break stupidly if file is > BUF_LEN bytes (infinite loop?)
+	char buffer[BUF_LEN];
 	ssize_t len_tmp = 1;
 	ssize_t length = 0;
 	while (len_tmp != 0) {
@@ -35,7 +69,6 @@ int main(int argc, char *argv[]) {
 	uint32_t crc32_found = crc32c(0, buffer, length);
 	printf("crc32: %u 0x%x, length %ld\n", crc32_found, crc32_found, length);
 
-    uint32_t crc32_target = 4201578152;
 
     // Try single byte corruption
     for (int i = 0; i < length; i++) {
@@ -99,6 +132,8 @@ int main(int argc, char *argv[]) {
         }
         printf("Did not find %d-byte solution\n", k);
     }
+
+    free(output_file);
 
 	exit(0);
 }
