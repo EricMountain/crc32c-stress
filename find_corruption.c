@@ -21,15 +21,82 @@ uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 
-struct thread_info {              /* Used as argument to thread_start() */
-    pthread_t thread_id;           /* ID returned by pthread_create() */
-    int       thread_num;          /* Application-defined thread # */
+struct thread_info {             /* Used as argument to thread_start() */
+    pthread_t thread_id;         /* ID returned by pthread_create() */
+    int       thread_num;        /* Application-defined thread # */
     ssize_t length;              /* Length of the block to checksum */
     unsigned int crc32_target;   /* CRC32C we are seeking to match */
+    unsigned int crc32_found;    /* CRC32C computed to begin with */
     char *buffer;                /* Pointer to buffer to checksum. Threads need to make own copy. */
     int bytes_wrong;             /* Number of wrong bytes to assume */
+    int offset;                  /* Offset into buffer at which to start permutations */
+    char *output_file;
 };
 
+static void * thread_start(void *arg)
+{
+    struct thread_info *tinfo = arg;
+
+    ssize_t length = tinfo->length;
+    uint32_t crc32_target = tinfo->crc32_target;
+    uint32_t crc32_found = tinfo->crc32_found;
+    char *buffer_ro = tinfo->buffer;
+    int bytes_wrong = tinfo->bytes_wrong;
+    int offset = tinfo->offset;
+    char *output_file = tinfo->output_file;
+
+    printf("Thread %d: length %ld, crc32_target %u\n", tinfo->thread_num, length, crc32_target);
+
+    char *buffer = (char *) calloc(length, sizeof(char));
+    if (buffer == NULL) {
+        handle_error("thread calloc");
+    }
+    memcpy(buffer, buffer_ro, length * sizeof(char));
+
+    uint32_t crc32_interim = crc32c(0, buffer, length);
+    if (crc32_interim != crc32_found) {
+        printf("%u %u\n", crc32_interim, crc32_found);
+        handle_error("BUG!");
+    }
+
+    char save[bytes_wrong];
+    memcpy(save, buffer+offset, bytes_wrong * sizeof(char));
+
+    for (uint64_t j = 0; j < 256 << ((bytes_wrong-1)*8); j++) {
+        uint64_t j2 = j;
+        for (int m = 0; m < bytes_wrong; m++) {
+            buffer[offset+m] = j2 & 0xff;
+            j2 >>= 8;
+        }
+        uint32_t crc32_test = crc32c(0, buffer, length);
+        if (crc32_test == crc32_target) {
+            printf("Found solution %u, target %u, offset %d, bytes %d\n", crc32_test, crc32_target, offset, bytes_wrong);
+            printf("Corrupt:\n");
+            for (int n = 0; n < bytes_wrong; n++) {
+                printf("%02hhx ", save[n]);
+            }
+            printf("\n");
+            printf("Correct:\n");
+            for (int n = 0; n < bytes_wrong; n++) {
+                printf("%02hhx ", buffer[offset+n]);
+            }
+            printf("\n");
+            int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+            ssize_t written = write(fd, buffer, length);
+            if (written == -1) {
+                handle_error("write");
+            } else if (written != length) {
+                handle_error("short write");
+            }
+            close(fd);
+            exit(0);
+        }
+    }
+
+    free(buffer);
+
+    return NULL;
+}
 
 // Args: crc32-target out-file hint-bytes-wrong hint-offset, threads
 int main(int argc, char *argv[]) {
@@ -80,49 +147,51 @@ int main(int argc, char *argv[]) {
 	uint32_t crc32_found = crc32c(0, buffer, length);
 	printf("crc32: %u 0x%x, length %ld\n", crc32_found, crc32_found, length);
 
+    pthread_attr_t attr;
+    int s = pthread_attr_init(&attr);
+    if (s != 0)
+       handle_error_en(s, "pthread_attr_init");
+
+    struct thread_info *tinfo = calloc(threads, sizeof(*tinfo));
+    if (tinfo == NULL)
+       handle_error("calloc");
+
     // Try sequential n-byte corruption
     // NB k is max 7, o/w (256 << ((k-1)*8)) will overflow I think. Need to do the math properly, but
     //    given length is a few thousand bytes the complexity is going through the roof anyway
+    int thread_num = 1;
     for (int k = hint_bytes_wrong; k < 7; k++) {
         char save[k];
         for (int i = hint_offset; i < length; i++) {
             // Spawn thread TODO
-            memcpy(save, buffer+i, k);
-            uint32_t crc32_interim = crc32c(0, buffer, length);
-            if (crc32_interim != crc32_found) {
-                handle_error("BUG!");
+            int thread_slot = i % threads;
+            if (tinfo[thread_slot].thread_num != 0) {
+                // In-use, we need to join
+                pthread_join(tinfo[thread_slot].thread_id, NULL);
+                tinfo[thread_slot].thread_num = 0;
             }
-            for (uint64_t j = 0; j < 256 << ((k-1)*8); j++) {
-                uint64_t j2 = j;
-                for (int m = 0; m < k; m++) {
-                    buffer[i+m] = j2 & 0xff;
-                    j2 >>= 8;
-                }
-                uint32_t crc32_test = crc32c(0, buffer, length);
-                if (crc32_test == crc32_target) {
-                    printf("Found solution %u, target %u, offset %d, bytes %d\n", crc32_test, crc32_target, i, k);
-                    printf("Corrupt:\n");
-                    for (int n = 0; n < k; n++) {
-                        printf("%02hhx ", save[n]);
-                    }
-                    printf("\n");
-                    printf("Correct:\n");
-                    for (int n = 0; n < k; n++) {
-                        printf("%02hhx ", buffer[i+n]);
-                    }
-                    printf("\n");
-                    int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-                    ssize_t written = write(fd, buffer, length);
-                    if (written == -1) {
-                        handle_error("write");
-                    } else if (written != length) {
-                        handle_error("short write");
-                    }
-                    close(fd);
-                    exit(0);
-                }
+
+            tinfo[thread_slot].thread_num = thread_num++;
+            tinfo[thread_slot].length = length;
+            tinfo[thread_slot].crc32_target = crc32_target;
+            tinfo[thread_slot].crc32_found = crc32_found;
+            tinfo[thread_slot].buffer = buffer;
+            tinfo[thread_slot].bytes_wrong = k;
+            tinfo[thread_slot].offset = i;
+            tinfo[thread_slot].output_file = output_file;
+
+            int res = pthread_create(&tinfo[thread_slot].thread_id, &attr,
+                                     &thread_start, &tinfo[thread_slot]);
+            if (res != 0)
+                handle_error_en(s, "pthread_create");
+        }
+        for (int t = 0; t < threads; t++) {
+            // Ensure all threads complete
+            if (tinfo[t].thread_num != 0) {
+                // In-use, we need to join
+                pthread_join(tinfo[t].thread_id, NULL);
+                tinfo[t].thread_num = 0;
             }
-            memcpy(buffer+i, save, k);
         }
         printf("Did not find %d-byte solution\n", k);
     }
