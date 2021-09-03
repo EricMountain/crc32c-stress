@@ -57,6 +57,8 @@ int main(int argc, char *argv[]) {
     printf("Did not find single-byte solution\n");
 
     // Try sequential n-byte corruption
+    // NB k is max 7, o/w (256 << ((k-1)*8)) will overflow I think. Need to do the math properly, but
+    //    given length is a few thousand bytes the complexity is going through the roof anyway
     for (uint64_t k = 1; k < 7; k++) {
         char save[k];
         for (int i = 0; i < length; i++) {
