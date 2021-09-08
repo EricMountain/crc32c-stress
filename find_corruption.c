@@ -9,6 +9,8 @@
 #include <time.h>
 #include <fcntl.h>
 
+// find_corruption -b 4 -c 4201578152 -f test.out -t 8 < ../data
+
 uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
 #define BUF_LEN 5000
@@ -175,7 +177,7 @@ int main(int argc, char *argv[]) {
     unsigned long thread_num = 1;
     for (int k = hint_bytes_wrong; k < 8; k++) {
         printf("k=%d, hint_offset=%d\n", k, hint_offset);
-        for (int i = hint_offset; i < length; i++) {
+        for (int i = hint_offset; i < length-k; i++) {
             int thread_slot = i % threads;
             if (tinfo[thread_slot].thread_num != 0) {
                 // In-use, we need to join
