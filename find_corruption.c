@@ -23,7 +23,7 @@ uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
 struct thread_info {             /* Used as argument to thread_start() */
     pthread_t thread_id;         /* ID returned by pthread_create() */
-    int       thread_num;        /* Application-defined thread # */
+    long unsigned thread_num;    /* Application-defined thread # */
     ssize_t length;              /* Length of the block to checksum */
     unsigned int crc32_target;   /* CRC32C we are seeking to match */
     unsigned int crc32_found;    /* CRC32C computed to begin with */
@@ -32,6 +32,17 @@ struct thread_info {             /* Used as argument to thread_start() */
     int offset;                  /* Offset into buffer at which to start permutations */
     char *output_file;
 };
+
+unsigned long long power(unsigned long long base, int exp)
+{
+    unsigned long long result = 1;
+    while(exp)
+    {
+        result *= base;
+        exp--;
+    }
+    return result;
+}
 
 static void * thread_start(void *arg)
 {
@@ -45,7 +56,7 @@ static void * thread_start(void *arg)
     int offset = tinfo->offset;
     char *output_file = tinfo->output_file;
 
-    printf("Thread %d: length %ld, crc32_target %u\n", tinfo->thread_num, length, crc32_target);
+//    printf("Thread %lu: length %ld, crc32_target %u\n", tinfo->thread_num, length, crc32_target);
 
     char *buffer = (char *) calloc(length, sizeof(char));
     if (buffer == NULL) {
@@ -62,7 +73,9 @@ static void * thread_start(void *arg)
     char save[bytes_wrong];
     memcpy(save, buffer+offset, bytes_wrong * sizeof(char));
 
-    for (uint64_t j = 0; j < 256 << ((bytes_wrong-1)*8); j++) {
+    unsigned long long jx = power(0x100, bytes_wrong);
+//    printf("bytes_wrong %d, jx=%llu 0x%llx, 0 < jx = %d\n", bytes_wrong, jx, jx, 0 < jx);
+    for (unsigned long long j = 0; j < jx; j++) {
         uint64_t j2 = j;
         for (int m = 0; m < bytes_wrong; m++) {
             buffer[offset+m] = j2 & 0xff;
@@ -89,7 +102,7 @@ static void * thread_start(void *arg)
                 handle_error("short write");
             }
             close(fd);
-            exit(0);
+//            exit(0);
         }
     }
 
@@ -101,7 +114,7 @@ static void * thread_start(void *arg)
 // Args: crc32-target out-file hint-bytes-wrong hint-offset, threads
 int main(int argc, char *argv[]) {
     uint32_t crc32_target = 4201578152;
-    int hint_bytes_wrong = 0;
+    int hint_bytes_wrong = 1;
     int hint_offset = 0;
     int opt;
     int threads = THREADS;
@@ -159,11 +172,10 @@ int main(int argc, char *argv[]) {
     // Try sequential n-byte corruption
     // NB k is max 7, o/w (256 << ((k-1)*8)) will overflow I think. Need to do the math properly, but
     //    given length is a few thousand bytes the complexity is going through the roof anyway
-    int thread_num = 1;
-    for (int k = hint_bytes_wrong; k < 7; k++) {
-        char save[k];
+    unsigned long thread_num = 1;
+    for (int k = hint_bytes_wrong; k < 8; k++) {
+        printf("k=%d, hint_offset=%d\n", k, hint_offset);
         for (int i = hint_offset; i < length; i++) {
-            // Spawn thread TODO
             int thread_slot = i % threads;
             if (tinfo[thread_slot].thread_num != 0) {
                 // In-use, we need to join
@@ -180,10 +192,11 @@ int main(int argc, char *argv[]) {
             tinfo[thread_slot].offset = i;
             tinfo[thread_slot].output_file = output_file;
 
+//            printf("create thread %lu\n", thread_num);
             int res = pthread_create(&tinfo[thread_slot].thread_id, &attr,
                                      &thread_start, &tinfo[thread_slot]);
             if (res != 0)
-                handle_error_en(s, "pthread_create");
+                handle_error("pthread_create");
         }
         for (int t = 0; t < threads; t++) {
             // Ensure all threads complete

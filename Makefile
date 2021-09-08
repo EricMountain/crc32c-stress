@@ -13,7 +13,7 @@ stress: crc32c.h crc32c.c stress.c
 	gcc -pthread -O3 -o stress crc32c.c stress.c
 
 find_corruption: crc32c.h crc32c.c find_corruption.c
-	gcc -O3 -o find_corruption crc32c.c find_corruption.c
+	gcc -pthread -O3 -o find_corruption crc32c.c find_corruption.c
 
 .PHONY: clean
 clean:
