@@ -1,6 +1,4 @@
-mac: crc32c find_corruption
-
-all: crc32c stress
+all: crc32c stress find_corruption
 
 crc32c.h: table_generator.c
 	gcc -O3 -o table_generator table_generator.c
