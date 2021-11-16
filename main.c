@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
