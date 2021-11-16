@@ -6,8 +6,17 @@ uint32_t crc32c(uint32_t crc, void const *buf, size_t len);
 
 #define BUF_LEN 100000000
 
+#define handle_error_en(en, msg) \
+    do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
+
+#define handle_error(msg) \
+    do { perror(msg); exit(EXIT_FAILURE); } while (0)
+
 int main(int argc, char *argv[]) {
-	char buffer[BUF_LEN];
+    char *buffer = NULL;
+    if ((buffer = malloc(BUF_LEN * sizeof(char))) == NULL) {
+        handle_error("malloc");
+    }
 
 	ssize_t len = 1;
 	ssize_t acc = 0;
